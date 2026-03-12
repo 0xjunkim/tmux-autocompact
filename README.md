@@ -1,5 +1,7 @@
 # tmux-autocompact
 
+![demo](demo.svg)
+
 tmux server holds all pane scrollback in RAM. Long sessions with high-output processes (multiple Claude Code instances, log streams, watch tasks) will eventually exhaust physical memory and freeze the system.
 
 This monitors tmux server RSS and automatically clears scrollback before that happens. Only scrollback is lost — sessions, processes, and state are unaffected.
