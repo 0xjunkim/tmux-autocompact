@@ -2,14 +2,20 @@
 
 tmux server holds all pane scrollback in RAM. Long sessions with high-output processes (multiple Claude Code instances, log streams, watch tasks) will eventually exhaust physical memory and freeze the system.
 
-This patch monitors tmux server RSS and automatically clears scrollback buffers before that happens. Scrollback is the only thing lost — sessions, processes, and state are unaffected.
+This monitors tmux server RSS and automatically clears scrollback before that happens. Only scrollback is lost — sessions, processes, and state are unaffected.
 
 ## Install
 
+Read `tmux-guard` and `tmux-compact` first. They're ~30 lines each.
+
 ```bash
-git clone https://github.com/0xjunkim/tmux-autocompact.git
-cd tmux-autocompact
-./install.sh
+# copy scripts
+cp tmux-guard tmux-compact ~/.local/bin/
+chmod +x ~/.local/bin/tmux-guard ~/.local/bin/tmux-compact
+
+# add to ~/.tmux.conf
+set -g history-limit 3000
+set-hook -g session-created 'run-shell "pgrep -f tmux-guard >/dev/null || tmux-guard &"'
 ```
 
 Restart tmux. Done.
