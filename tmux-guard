@@ -1,0 +1,33 @@
+#!/bin/bash
+# tmux-guard: monitor tmux server RSS, auto-compact when needed.
+# Usage: tmux-guard [max_mb] (default: 512)
+
+MAX_MB=${1:-512}
+INTERVAL=60
+last_tier=0
+
+while true; do
+  pid=$(pgrep -x 'tmux: server' 2>/dev/null || pgrep -f 'tmux.*server' 2>/dev/null)
+  if [ -z "$pid" ]; then
+    last_tier=0
+    sleep "$INTERVAL"
+    continue
+  fi
+
+  rss_kb=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
+  rss_mb=$((rss_kb / 1024))
+  pct=$((rss_mb * 100 / MAX_MB))
+
+  if [ "$pct" -ge 75 ]; then
+    tier=$((pct / 5))
+    if [ "$tier" -gt "$last_tier" ]; then
+      tmux-compact
+      tmux display-message "tmux-guard: compacted at ${pct}% (${rss_mb}MB)"
+      last_tier=0
+    fi
+  else
+    last_tier=0
+  fi
+
+  sleep "$INTERVAL"
+done
