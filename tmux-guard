@@ -1,4 +1,0 @@
-#!/bin/bash
-# Compatibility shim for older installs.
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$SCRIPT_DIR/tmux-autocompact" "$@"

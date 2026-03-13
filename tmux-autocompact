@@ -1,6 +1,6 @@
 #!/bin/bash
-# tmux-autocompact: monitor tmux server RSS and compact scrollback when needed.
-# Usage: tmux-autocompact [max_mb] (default: 256)
+# tmux-autocompact: clear tmux pane history before tmux server RSS becomes unsafe.
+# Usage: tmux-autocompact [rss_budget_mb]
 
 find_tmux_server_pid() {
   pgrep -x 'tmux: server' 2>/dev/null && return 0
@@ -8,34 +8,54 @@ find_tmux_server_pid() {
   ps -ax -o pid=,tty=,command= 2>/dev/null | awk '$2 == "??" && $3 == "tmux" { print $1; exit }'
 }
 
-MAX_MB=${1:-256}
-INTERVAL=60
+is_positive_integer() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+    *) [ "$1" -gt 0 ] ;;
+  esac
+}
+
+RSS_BUDGET_MB=${1:-256}
+INTERVAL_SECONDS=60
+COMPACT_AT_PERCENT=75
 last_tier=0
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-TMUX_AUTOCOMPACT_COMPACT=${TMUX_AUTOCOMPACT_COMPACT:-"$SCRIPT_DIR/tmux-autocompact-compact"}
+TMUX_AUTOCOMPACT_CLEAR=${TMUX_AUTOCOMPACT_CLEAR:-"$SCRIPT_DIR/tmux-autocompact-clear"}
+
+if ! is_positive_integer "$RSS_BUDGET_MB"; then
+  echo "tmux-autocompact: rss_budget_mb must be a positive integer" >&2
+  exit 1
+fi
+
+if ! is_positive_integer "$INTERVAL_SECONDS"; then
+  echo "tmux-autocompact: interval must be a positive integer" >&2
+  exit 1
+fi
+
+COMPACT_AT_MB=$((RSS_BUDGET_MB * COMPACT_AT_PERCENT / 100))
 
 while true; do
   pid=$(find_tmux_server_pid)
   if [ -z "$pid" ]; then
     last_tier=0
-    sleep "$INTERVAL"
+    sleep "$INTERVAL_SECONDS"
     continue
   fi
 
   rss_kb=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
   rss_mb=$((rss_kb / 1024))
-  pct=$((rss_mb * 100 / MAX_MB))
+  pct=$((rss_mb * 100 / RSS_BUDGET_MB))
 
-  if [ "$pct" -ge 75 ]; then
+  if [ "$rss_mb" -ge "$COMPACT_AT_MB" ]; then
     tier=$((pct / 5))
     if [ "$tier" -gt "$last_tier" ]; then
-      "$TMUX_AUTOCOMPACT_COMPACT"
-      tmux display-message "tmux-autocompact: compacted at ${pct}% (${rss_mb}MB)"
+      pane_count=$("$TMUX_AUTOCOMPACT_CLEAR" --count 2>/dev/null || echo 0)
+      tmux display-message "tmux-autocompact: cleared ${pane_count} panes at ${rss_mb}MB RSS (budget ${RSS_BUDGET_MB}MB)" 2>/dev/null || true
       last_tier=0
     fi
   else
     last_tier=0
   fi
 
-  sleep "$INTERVAL"
+  sleep "$INTERVAL_SECONDS"
 done

@@ -1,53 +1,65 @@
-# tmux-autocompact v2
+# tmux-autocompact
 
 ![demo](demo.svg)
 
-tmux keeps pane scrollback in the server process. Long sessions with high-output workloads such as AI coding agents, REPLs, log streams, watch tasks, and builds will eventually grow RSS enough to freeze the machine.
+tmux stores pane history inside the tmux server process. Output-heavy panes can grow that RSS until the machine starts swapping or other work gets killed.
 
-`tmux-autocompact` is model-agnostic. It does not care whether the pane is running Claude Code, Codex, Gemini, shell scripts, or anything else. It only watches tmux server RSS and clears scrollback before memory pressure becomes dangerous. Only scrollback is lost; sessions, processes, and pane state are unaffected.
+`tmux-autocompact` is model-agnostic and workload-agnostic. It only watches tmux server RSS. When the compact point is reached, it clears pane history. Sessions, panes, windows, and child processes keep running.
+
+The default RSS budget is `256MB`. Autocompaction starts at `75%` of that budget, so the default compact point is `192MB`.
 
 ## Install
 
-Read `tmux-autocompact` and `tmux-autocompact-compact` first. They are small Bash scripts.
+The repository contains two scripts:
+
+- `tmux-autocompact`: background monitor
+- `tmux-autocompact-clear`: immediate manual compaction
 
 ```bash
-# copy scripts
-cp tmux-autocompact tmux-autocompact-compact ~/.local/bin/
-chmod +x ~/.local/bin/tmux-autocompact ~/.local/bin/tmux-autocompact-compact
+cp tmux-autocompact tmux-autocompact-clear ~/.local/bin/
+chmod +x ~/.local/bin/tmux-autocompact ~/.local/bin/tmux-autocompact-clear
+```
 
-# optional: keep legacy names for older configs
-cp tmux-guard tmux-compact ~/.local/bin/
-chmod +x ~/.local/bin/tmux-guard ~/.local/bin/tmux-compact
+Add the following to `~/.tmux.conf`:
 
-# add to ~/.tmux.conf
+```bash
 set -g history-limit 3000
 set-hook -g session-created 'run-shell -b "pgrep -f \"$HOME/.local/bin/tmux-autocompact 256\" >/dev/null || exec \"$HOME/.local/bin/tmux-autocompact 256\""'
 ```
 
-Reload tmux, or start it once immediately:
+Reload tmux, or start the monitor immediately:
 
 ```bash
+tmux source-file ~/.tmux.conf
 tmux run-shell -b "$HOME/.local/bin/tmux-autocompact 256"
 ```
 
 ## How it works
 
-- `tmux-autocompact` runs in background and checks server RSS every 60 seconds
-- Below 75%: silent
-- 75%+: auto-clears all pane scrollback, notifies after
-- `tmux-autocompact-compact` can be run manually from any terminal at any time
+- `tmux-autocompact` checks tmux server RSS every `60` seconds.
+- It compacts when RSS reaches `75%` of the configured budget.
+- The default invocation `tmux-autocompact 256` starts compacting at `192MB`.
+- `tmux-autocompact-clear` clears history immediately.
 
-Default threshold is 256MB. Override: `tmux-autocompact 128`
+## Manual use
 
-## Compatibility
+```bash
+tmux-autocompact-clear
+tmux-autocompact 128
+```
 
-- `tmux-guard` and `tmux-compact` remain as thin wrappers for older installs.
+`tmux-autocompact 128` starts compacting at `96MB`.
+
+## Scope
+
+- Scrollback is removed.
+- Running processes are not stopped.
+- tmux sessions, windows, and panes are not removed.
 
 ## Uninstall
 
-```bash
-rm ~/.local/bin/tmux-autocompact ~/.local/bin/tmux-autocompact-compact
-rm ~/.local/bin/tmux-guard ~/.local/bin/tmux-compact
-```
+Remove the hook from `~/.tmux.conf`, then delete the installed scripts:
 
-Remove the two lines from `~/.tmux.conf`.
+```bash
+rm ~/.local/bin/tmux-autocompact ~/.local/bin/tmux-autocompact-clear
+```
