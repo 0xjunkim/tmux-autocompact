@@ -1,0 +1,41 @@
+#!/bin/bash
+# tmux-autocompact: monitor tmux server RSS and compact scrollback when needed.
+# Usage: tmux-autocompact [max_mb] (default: 256)
+
+find_tmux_server_pid() {
+  pgrep -x 'tmux: server' 2>/dev/null && return 0
+  pgrep -f 'tmux.*server' 2>/dev/null && return 0
+  ps -ax -o pid=,tty=,command= 2>/dev/null | awk '$2 == "??" && $3 == "tmux" { print $1; exit }'
+}
+
+MAX_MB=${1:-256}
+INTERVAL=60
+last_tier=0
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+TMUX_AUTOCOMPACT_COMPACT=${TMUX_AUTOCOMPACT_COMPACT:-"$SCRIPT_DIR/tmux-autocompact-compact"}
+
+while true; do
+  pid=$(find_tmux_server_pid)
+  if [ -z "$pid" ]; then
+    last_tier=0
+    sleep "$INTERVAL"
+    continue
+  fi
+
+  rss_kb=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
+  rss_mb=$((rss_kb / 1024))
+  pct=$((rss_mb * 100 / MAX_MB))
+
+  if [ "$pct" -ge 75 ]; then
+    tier=$((pct / 5))
+    if [ "$tier" -gt "$last_tier" ]; then
+      "$TMUX_AUTOCOMPACT_COMPACT"
+      tmux display-message "tmux-autocompact: compacted at ${pct}% (${rss_mb}MB)"
+      last_tier=0
+    fi
+  else
+    last_tier=0
+  fi
+
+  sleep "$INTERVAL"
+done

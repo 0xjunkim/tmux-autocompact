@@ -1,7 +1,4 @@
 #!/bin/bash
-# tmux-compact: clear scrollback of all panes.
-count=$(tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}' | tee /dev/stderr | while read -r p; do
-  tmux clear-history -t "$p"
-done | wc -l)
-rss_kb=$(ps -o rss= -p "$(pgrep -x 'tmux: server')" 2>/dev/null | tr -d ' ')
-tmux display-message "compacted — now $((rss_kb / 1024))MB"
+# Compatibility shim for older installs.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$SCRIPT_DIR/tmux-autocompact-compact" "$@"
