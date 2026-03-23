@@ -24,7 +24,7 @@ Add the following to `~/.tmux.conf`:
 
 ```bash
 set -g history-limit 3000
-set-hook -g session-created 'run-shell -b "pgrep -f \"$HOME/.local/bin/tmux-autocompact 256\" >/dev/null || \"$HOME/.local/bin/tmux-autocompact 256\""'
+set-hook -g session-created 'run-shell -b "pgrep -f tmux-autocompact\\ 256 >/dev/null || ~/.local/bin/tmux-autocompact 256"'
 ```
 
 Reload tmux, or start the monitor immediately:
